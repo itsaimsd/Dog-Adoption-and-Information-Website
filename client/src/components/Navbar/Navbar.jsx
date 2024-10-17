@@ -1,3 +1,4 @@
+// src/components/Navbar/Navbar.jsx
 import React, { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import ProfileInfo from "../ProfileInfo/ProfileInfo";
@@ -8,18 +9,23 @@ function Navbar({ userInfo = null }) {
 
   const navigate = useNavigate();
 
-  const onLogout = () => {
-    localStorage.clear();
-    navigate("/login");
-  };
-
   const handleSearch = (value) => {
-    navigate(`/search/${value}`);
+    setSearchCategory(value);
+    if (value.trim() === "") {
+      navigate("/"); // Redirect to home when input is empty
+    } else {
+      navigate(`/search/${value}`);
+    }
   };
 
   const onClearSearch = () => {
-    setSearchCategory("");
-    navigate(`/`); // Navigate to default path
+    setSearchCategory(""); 
+    navigate("/"); // Ensure navigation to the home page
+  };
+
+  const onLogout = () => {
+    localStorage.clear();
+    navigate("/login");
   };
 
   return (
@@ -30,10 +36,7 @@ function Navbar({ userInfo = null }) {
         <div className="flex items-center lg:order-2 gap-4">
           <SearchBar
             value={searchCategory}
-            onChange={({ target }) => {
-              setSearchCategory(target.value);
-              handleSearch(target.value);
-            }}
+            onChange={({ target }) => handleSearch(target.value)}
             onClearSearch={onClearSearch}
             className="bg-gray-700 text-white border border-gray-600 focus:ring-2 focus:ring-blue-500 rounded-lg px-3 py-2"
           />

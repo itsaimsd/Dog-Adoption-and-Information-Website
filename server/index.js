@@ -1,102 +1,117 @@
+// server/index.js
 require("dotenv").config();
-const config = require("./config.json");
-const mongoose = require("mongoose");
 const express = require("express");
-const cors = require("cors");
-const axios = require("axios"); // Add axios import
+const mongoose = require("mongoose");
+const cors = require("cors"); // Import CORS
 const jwt = require("jsonwebtoken");
-const { authenticateToken } = require("./utilities/utilities");
+const axios = require("axios");
+const { authenticateToken } = require("./utilities/utilities"); // Import your custom middleware
+const config = require("./config.json");
+
+// Models
+const User = require("./model/user.model"); // Ensure the filename matches exactly
 
 const app = express();
 const port = 5000;
 
-// Connect to the database
-mongoose.connect(config.connectionstring, { useNewUrlParser: true, useUnifiedTopology: true })
-    .then(() => console.log("Connected to MongoDB"))
-    .catch((err) => console.error("Could not connect to MongoDB...", err));
+// Apply Middleware
+app.use(cors()); // Enable CORS for all routes
+app.use(express.json()); // Parse JSON requests
 
-const User = require("./model/User.model");
+// Connect to MongoDB
+mongoose
+  .connect(config.connectionstring, { useNewUrlParser: true, useUnifiedTopology: true })
+  .then(() => console.log("Connected to MongoDB"))
+  .catch((err) => console.error("Could not connect to MongoDB...", err));
 
-app.use(express.json());
-app.use(cors());
+// Routes
 
+// Test Route
 app.get("/", (req, res) => {
-    res.json({ data: "Hello world" });
+  res.json({ data: "Hello world" });
 });
 
-// Create Account Endpoint
+// Create Account Route (Signup)
 app.post("/create_account", async (req, res) => {
-    const { fullname, email, password } = req.body;
+  const { fullname, email, password } = req.body;
 
-    if (!fullname || !email || !password) {
-        return res.status(400).json({ error: true, message: "All fields are required" });
+  if (!fullname || !email || !password) {
+    return res.status(400).json({ error: true, message: "All fields are required" });
+  }
+
+  try {
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(409).json({ error: true, message: "User already exists" });
     }
 
-    const isUser = await User.findOne({ email: email });
+    const newUser = new User({ fullname, email, password });
+    await newUser.save();
 
-    if (isUser) {
-        return res.json({ error: true, message: "User already exists" });
-    }
+    const accessToken = jwt.sign({ userId: newUser._id }, process.env.ACCESS_TOKEN_SECRET, {
+      expiresIn: "10h",
+    });
 
-    const user = new User({ fullname, email, password });
-    await user.save();
-
-    const accessToken = jwt.sign({ user }, process.env.ACCESS_TOKEN_SECRET, { expiresIn: "36000m" });
-
-    return res.json({ error: false, user, accessToken, message: "Registration Successful" });
+    return res.status(201).json({
+      error: false,
+      message: "Registration Successful",
+      user: newUser,
+      accessToken,
+    });
+  } catch (error) {
+    console.error("Error creating user:", error);
+    return res.status(500).json({ error: true, message: "An unexpected error occurred." });
+  }
 });
 
-// Login Endpoint
+// Login Route
 app.post("/login", async (req, res) => {
-    const { email, password } = req.body;
+  const { email, password } = req.body;
 
-    if (!email || !password) {
-        return res.status(400).json({ message: "Email and Password are required" });
+  if (!email || !password) {
+    return res.status(400).json({ error: true, message: "Email and password are required" });
+  }
+
+  try {
+    const user = await User.findOne({ email });
+    if (!user || user.password !== password) {
+      return res.status(401).json({ error: true, message: "Invalid credentials" });
     }
 
-    const userInfo = await User.findOne({ email: email });
+    const accessToken = jwt.sign({ userId: user._id }, process.env.ACCESS_TOKEN_SECRET, {
+      expiresIn: "10h",
+    });
 
-    if (!userInfo) {
-        return res.status(400).json({ message: "User not found" });
-    }
-
-    if (userInfo.password === password) {
-        const user = { user: userInfo };
-        const accessToken = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, { expiresIn: "36000m" });
-
-        return res.json({ error: false, message: "Login Successfully", email, accessToken });
-    } else {
-        return res.status(400).json({ error: true, message: "Invalid Credentials" });
-    }
+    return res.json({
+      error: false,
+      message: "Login Successful",
+      accessToken,
+    });
+  } catch (error) {
+    console.error("Error during login:", error);
+    return res.status(500).json({ error: true, message: "An unexpected error occurred." });
+  }
 });
 
-// Get User Endpoint
+// Get User Route (Protected)
 app.get("/get-user", authenticateToken, async (req, res) => {
-    const { user } = req.user;
-    const isUser = await User.findOne({ _id: user._id });
+  const { userId } = req.user;
 
-    if (!isUser) {
-        return res.sendStatus(401);
+  try {
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: true, message: "User not found" });
     }
-
-    return res.json({ user: isUser, message: "" });
+    return res.json({ user });
+  } catch (error) {
+    console.error("Error fetching user:", error);
+    return res.status(500).json({ error: true, message: "An unexpected error occurred." });
+  }
 });
 
-// Get Dog Images Endpoint
-app.get('/api/dog/:code', async (req, res) => {
-    const { code } = req.params;
-    const url = `https://http.dog/${code}.json`;
-
-    try {
-        const response = await axios.get(url);
-        res.json(response.data);
-    } catch (error) {
-        res.status(500).json({ message: 'Error fetching data', error: error.message });
-    }
-});
-
+// Start the Server
 app.listen(port, () => {
-    console.log(`Server is running on port ${port}`);
+  console.log(`Server is running on http://localhost:${port}`);
 });
 
 module.exports = app;

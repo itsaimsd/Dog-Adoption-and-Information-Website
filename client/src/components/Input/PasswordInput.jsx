@@ -1,3 +1,4 @@
+// src/components/Input/PasswordInput.jsx
 import React from "react";
 
 const PasswordInput = ({ value, onChange }) => {

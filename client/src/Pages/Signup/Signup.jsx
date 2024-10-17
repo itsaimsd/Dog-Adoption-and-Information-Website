@@ -1,6 +1,7 @@
+// src/Pages/Signup/Signup.jsx
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import PasswordInput from "../../components/Input/PasswrodInput";
+import PasswordInput from "../../components/Input/PasswordInput"; // Ensure this path is correct
 import { validateEmail } from "../../Utils/Helper";
 import axiosInstance from "../../Utils/AxiosInstance";
 
@@ -9,12 +10,12 @@ function Signup() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState(null);
-
   const navigate = useNavigate();
 
   const handleSignup = async (e) => {
     e.preventDefault();
 
+    // Validate inputs
     if (!name) {
       setError("Please enter your name");
       return;
@@ -28,33 +29,34 @@ function Signup() {
       return;
     }
 
-    setError("");
+    setError(""); // Clear any previous errors
 
-    // SignUp API call
     try {
+      // Send the signup request to the server
       const response = await axiosInstance.post("/create_account", {
-        fullname: name,
+        fullname: name, // Ensure the key matches what the server expects
         email: email,
         password: password,
       });
-      // Handle successful registration response
-      if (response.data && response.data.error) {
-        setError(response.data.message);
-        return;
-      }
 
+      // Handle successful registration response
       if (response.data && response.data.accessToken) {
         localStorage.setItem("token", response.data.accessToken);
-        navigate("/");
+        navigate("/"); // Redirect to home on successful signup
+      } else {
+        setError(
+          response.data.message ||
+            "An unexpected error occurred. Please try again."
+        );
       }
     } catch (error) {
-      // Handle signUp error
-      if (
-        error.response &&
-        error.response.data &&
-        error.response.data.message
-      ) {
-        setError(error.response.data.message);
+      // Log the error response for debugging
+      console.error("Error during signup:", error);
+      if (error.response && error.response.data) {
+        setError(
+          error.response.data.message ||
+            "An unexpected error occurred. Please try again."
+        );
       } else {
         setError("An unexpected error occurred. Please try again.");
       }
